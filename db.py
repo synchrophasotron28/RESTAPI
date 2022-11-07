@@ -19,14 +19,14 @@ con = psycopg2.connect(
 cur = con.cursor()
 def connect_db_pg():
 
-  cur.execute('''
+    cur.execute('''
     CREATE TABLE IF NOT EXISTS orders( 
       id serial constraint order_pk PRIMARY KEY,
       order_name text NOT NULL,
       start_date timestamptz
     );
 ''')
-  cur.execute('''
+    cur.execute('''
     CREATE TABLE IF NOT EXISTS tasks(
       id serial constraint task_pk PRIMARY KEY,
       order_id integer constraint task_fk REFERENCES orders ON DELETE CASCADE,
@@ -35,8 +35,8 @@ def connect_db_pg():
       pred integer ARRAY
     );
 ''')
-  con.commit()
-  return con
+    con.commit()
+    return con
 
 
 

@@ -1,8 +1,8 @@
 
 from flask import Flask, jsonify, request
 import json
-# from db import connect_db_pg 
-import db 
+# from db import connect_db_pg
+import db
 app = Flask(__name__)
 
 #клиент (для теста)
@@ -72,7 +72,7 @@ def get_list():
             {
                 "order_id"  :curr_str[0],
                 'order_name':curr_str[1],
-                'start_date':curr_str[2],
+                'start_date':curr_str[2]
             }
             )
     return jsonify(result_list)
@@ -85,43 +85,79 @@ def get_list():
 def post_list():
     data = json.loads(request.data)
     print(data)
-    db.cur.execute(f"insert into orders (order_name, start_date) values \
-    (\'{data['order_name']}\', \'{data['start_date']}\')")
-    # db.con.commit()
+    db.cur.execute("insert into orders (order_name, start_date) values \
+    (%s, %s)", (data['order_name'], data['start_date']))
+    db.con.commit()
     #получим данные с сервера
     # new_one = request.json
     # orders.append(new_one)
     # return jsonify(orders)
-    return "done"
+    return "done: post", 204
 
 #добавить элементы в список
 #нужен id
-@app.route('/orders/<int:order_id>', methods=['PUT'])
-def update_list(order_id):
+@app.route('/orders', methods=['PUT'])
+def update_list():
+    '''
+    Updates order (by put)
+    '''
+
     #получим тело запроса
-    params = request.json
-    #генератор возвращает соответствующее id или none, если соответствие не найдено
-    item = next((i for i in orders if i['id'] == order_id), None)
-    if not item:
-        return{'message': 'No tutorials with this id'}, 400
-    item.update(params)
-    #возвращаем изм список
-    return item
+    data = request.json #application/json
+    # data = json.loads(request.data)#p
+    print(data)
+    #db.cur.execute(f"update orders SET order_name=\'{data['order_name']}\', \
+    #    start_date=\'{data['start_date']}\' WHERE id=\'{data['order_id']}\'")
+    if data.get("order_id"):
+        db.cur.execute("INSERT INTO orders (id, order_name, start_date) VALUES \
+            (%s,%s,%s) ON CONFLICT (id) DO UPDATE SET order_name=%s, start_date=%s",
+            (data['order_id'],data['order_name'],data['start_date'],
+            data['order_name'],data['start_date']))
+    else:
+        db.cur.execute(f"INSERT INTO orders (order_name, start_date) VALUES \
+            (\'{data['order_name']}\', \'{data['start_date']}\') ON CONFLICT (id) DO UPDATE \
+            SET order_name=\'{data['order_name']}\', \
+            start_date=\'{data['start_date']}\'")
+    db.con.commit()
+    return "done: put", 200
+
 
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
 def delete_list(order_id):
-
-    idx, _ = next((i for i in enumerate(orders) if i[1]['id'] == order_id), (None, None))
-
-    orders.pop(idx)
-    return '', 204
+    # r=requests.put(lc/orders/1, headers=headers, data=json.dumps(data_mas_orders[0]))
+    # http://localhost:5000/orders/1
+    '''
+        {
+        "order_id": 10,
+        "start_date": "22-02-2006",
+        "order_name": "OrderA",
+        }
+    '''
+    db.cur.execute("DELETE FROM orders WHERE id = %s",(str(int(order_id)),))
+    db.con.commit()
+    row = db.cur.rowcount
+    return jsonify({"deleted":row}), 200
 
 
 #route обрабатывает запросы клиента к серверу
-#сначала обработчик гет запросов
+#сначала обработчик get запросов
 @app.route('/tasks', methods=['GET'])
 def get_list_tasks():
-    return jsonify(tasks)# бд сюда
+    db.cur.execute('''SELECT * FROM tasks;''')
+    arr_db = db.cur.fetchall()
+    result_list=[]
+    for curr_str in arr_db:
+        result_list.append(
+            {
+                'task_id': curr_str[0],
+                'order_name': curr_str[1],
+                'task': curr_str[2],
+                'duration': curr_str[3],
+                'resource': curr_str[4],
+                'pred': curr_str[5]
+            }
+            )
+    return jsonify(result_list)
 #список туториалов обновляется на сервере
 #в него будет добавляться новый элемент
 #по request получаем, когда отправляем от клиента к серверу
@@ -129,34 +165,48 @@ def get_list_tasks():
 @app.route('/tasks', methods=['POST'])
 def post_list_tasks():
     #получим данные с сервера
-    new_one = request.json
-    tasks.append(new_one)
-    return jsonify(tasks)
+    data = json.loads(request.data)
+    print(data)
+    db.cur.execute("insert into tasks (id,order_id, task_name, duration,resource,pred) values \
+        (%s, %s, %s, %s, %s, %s)",(data['task_id'], data['order_id'], data['task_name'], 
+        data['duration'], data['resource'], data['pred']))
+    return "done: post", 200
 
 #добавить элементы в список
 #нужен id
 @app.route('/tasks/<int:task_id>', methods=['PUT'])
 def update_list_tasks(task_id):
-    #получим тело запроса
-    params = request.json
-    #генератор возвращает соответствующее id или none, если соответствие не найдено
-    item = next((i for i in orders if i['id'] == task_id), None)
-    if not item:
-        return{'message': 'No tutorials with this id'}, 400
-    item.update(params)
-    #возвращаем изм список
-    return item
+    data = request.json 
+    print(data)
+    if data.get("id"):
+        db.cur.execute("INSERT INTO tasks(id, order_id, duration, resource, pred) VALUES \
+            (%s,%s,%s,%s,%s) ON CONFLICT (id) DO UPDATE SET order_id=%s, duration=%s, resource=%s, pred=%s",
+            (data['id'],data['order_id'],data['duration'],
+            data['resource'],data['pred'],data['order_id'],data['duration'],
+            data['resource'],data['pred']))
+    else:
+        db.cur.execute("INSERT INTO tasks(order_id, duration, resource, pred) VALUES \
+            (%s,%s,%s,%s) ON CONFLICT (id) DO UPDATE \
+            SET order_id=%s, duration=%s, resource=%s, pred=%s",
+            (data['order_id'],data['duration'],data['resource'],data['pred'],
+            data['order_id'],data['duration'],data['resource'],data['pred']))
+    db.con.commit()
+    return "done: put", 200
+
 
 @app.route('/tasks/<int:task_id>', methods=['DELETE'])
 def delete_list_tasks(task_id):
-
-    idx, _ = next((i for i in enumerate(orders) if i[1]['id'] == task_id), (None, None))
-    tasks.pop(idx)
-    return '', 204
+    db.cur.execute(f"DELETE from tasks where id = \'{task_id}\'")
+    db.con.commit()
+    
+    # # arr_db = db.cur.fetchall()
+    # idx, _ = next((i for i in enumerate(orders) if i[1]['id'] == task_id), (None, None))
+    # tasks.pop(idx)
+    return "done: delete",200
 
 
 if __name__ == '__main__':# this is main!
     # connect_db_pg()
     # db.connect_db_pg()
     with db.connect_db_pg() as connection: #это вообще работает?
-        app.run()
+        app.run(debug=True)
