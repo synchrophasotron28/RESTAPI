@@ -76,7 +76,20 @@ def get_list():
             }
             )
     return jsonify(result_list)
-
+@app.route('/orders/<int:order_id>', methods=['GET'])
+def get_list_id():
+    db.cur.execute('''SELECT * FROM orders WHERE orders = %s''',(str(int(order_id)),))
+    arr_db = db.cur.fetchall()
+    result_list=[]
+    for curr_str in arr_db:
+        result_list.append(
+            {
+                "order_id"  :curr_str[0],
+                'order_name':curr_str[1],
+                'start_date':curr_str[2]
+            }
+            )
+    return jsonify(result_list)
 #список туториалов обновляется на сервере
 #в него будет добавляться новый элемент
 #по request получаем, когда отправляем от клиента к серверу
@@ -168,7 +181,7 @@ def post_list_tasks():
     data = json.loads(request.data)
     print(data)
     db.cur.execute("insert into tasks (id,order_id, task_name, duration,resource,pred) values \
-        (%s, %s, %s, %s, %s, %s)",(data['task_id'], data['order_id'], data['task_name'], 
+        (%s, %s, %s, %s, %s, %s)",(data['id'], data['order_id'], data['task_name'], 
         data['duration'], data['resource'], data['pred']))
     return "done: post", 200
 
@@ -204,9 +217,33 @@ def delete_list_tasks(task_id):
     # tasks.pop(idx)
     return "done: delete",200
 
+    #Лаба 2##################################################
+    
+@app.get('/api/orders/calc/<order_id>')
+def api_calc_plan3(order_id):
+    connected = False
+    db.cur.execute('''SELECT duration FROM tasks WHERE order_id = %s''',(str(int(order_id)),))
+    dur_from_db = db.cur.fetchall()
+    if dur_from_db is None: # тут надо проверить что возвращает если запрос ничего не нашел
+        return 'заказ не найден', 404 # или у него нет работ
+    else: 
+        r = redis.Redis(decode_responses=True)
+        if r.ping() == True:
+            print('connection to redis')
+            connected = True
+        duration = r.get(order_id) #смотрит вносили мы в редис данные по duration
+        if duration is None:
+            duration =  sum([dur for dur in dur_from_db])  # Highload
+            r.setex(order_id, 100, duration)
+        else:
+            print('data retrieved from cache in redis')
+        return {'duration': duration}, 201
+            
+
 
 if __name__ == '__main__':# this is main!
     # connect_db_pg()
     # db.connect_db_pg()
     with db.connect_db_pg() as connection: #это вообще работает?
         app.run(debug=True)
+# проверить фунции get,put,post,delete
